@@ -1,4 +1,3 @@
-
 #include "solver.hpp"
 #include <iostream>
 #include <cstdlib>
@@ -29,11 +28,11 @@ int main(int argc, char** argv){
   std::ostringstream os;
   os << std::fixed << std::setprecision(6)
      << "{"
-     << ""nx":"<<nx<<","
-     << ""l2":"<< s.l2_error() << ","
-     << ""kernel_ms":"<< s.kernel_ms() << ","
-     << ""total_ms":"<< s.total_ms() << ","
-     << ""deterministic":"<<(deterministic?1:0)
+     << "\"nx\":"<<nx<<","
+     << "\"l2\":"<< s.l2_error() << ","
+     << "\"kernel_ms\":"<< s.kernel_ms() << ","
+     << "\"total_ms\":"<< s.total_ms() << ","
+     << "\"deterministic\":"<<(deterministic?1:0)
      << "}";
 
   std::cout << os.str() << std::endl;
