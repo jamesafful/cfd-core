@@ -1,13 +1,11 @@
 
 {
-  "name": "agentic-cfd",
+  "name": "agentic-cfd-m1",
   "image": "mcr.microsoft.com/devcontainers/cpp:ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11"
-    }
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" }
   },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y cmake ninja-build && pip install -r orchestrator/requirements.txt",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y cmake ninja-build libssl-dev && pip install -r orchestrator/requirements.txt",
   "customizations": {
     "vscode": {
       "extensions": [

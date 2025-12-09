@@ -13,7 +13,7 @@ SPACE = {
 def objective(trial):
     cfg = {k: trial.suggest_categorical(k, v) for k,v in SPACE.items()}
     m: Metrics = evaluate(cfg)
-    trial.set_user_attr("metrics", m.dict())
+    trial.set_user_attr("metrics", m.model_dump())
     return m.score
 
 if __name__ == "__main__":

@@ -1,51 +1,41 @@
 
-# Agentic CFD — MVP Scaffold (Codespaces-ready)
+# Agentic CFD — 1D MUSCL+HLLC (Sod) MVP
 
-This repository is a minimal, correctness-first CFD core scaffold with an autotuning orchestrator.
-It's designed to run **out of the box on GitHub Codespaces** (CPU-only by default).
+This repo is **Codespaces-ready** and implements a **1D finite-volume Euler solver** with **MUSCL (minmod)** reconstruction and **HLLC** flux. It adds:
 
-## Features
-- C++20 core with a tiny 1D structured-grid stepper placeholder (ready to swap in MUSCL+HLLC).
-- JSON metrics output (L2 placeholder, kernel/total timing).
-- Python orchestrator with Optuna searching **params/build flags**; baseline-normalized speedup; per-trial build dirs.
-- Tier-1 CI workflow (CPU): build + unit tests + orchestrator smoke.
-- Devcontainer for Codespaces with all dependencies preinstalled (cmake, ninja, Python libs).
+- `--problem sod1d`, `--final_time T` (CFL-based `dt`), `--gamma`.
+- Deterministic, conservative update on a uniform grid with transmissive BCs.
+- L2/Linf error vs **embedded Sod exact solution**.
+- Conserved totals (`mass_total`, `momentum_total`, `energy_total`) and a `physics_hash` in JSON.
 
-> NOTE: The numerics shipped here are **placeholders** to ensure turnkey run in Codespaces.
-> Replace `src/numerics.hpp` and wire the solver loop for MUSCL+HLLC + MMS once ready.
+## Quickstart
 
-## Quickstart (Codespaces)
-1. Open in GitHub Codespaces.
-2. Build and run:
-   ```bash
-   bash scripts/build.sh -G Ninja
-   ./build/agentic_cfd --nx 400 --cfl 0.5 --rk 3 --nsteps 5 --deterministic
-   ```
-3. Run unit tests:
-   ```bash
-   ctest --test-dir build --output-on-failure
-   ```
-4. Try the autotuner (2 quick trials):
-   ```bash
-   pip install -r orchestrator/requirements.txt
-   KRUNS=2 python orchestrator/study.py --trials 2
-   ```
-
-## Structure
-```
-agentic-cfd/
-├─ CMakeLists.txt
-├─ src/                # core C++
-├─ tests/              # gtest unit tests
-├─ orchestrator/       # Python autotuner
-├─ scripts/            # helpers
-├─ .github/workflows/  # CI
-└─ .devcontainer/      # Codespaces config
+```bash
+# Build (CPU)
+bash scripts/build.sh -G Ninja    # or omit -G Ninja if Ninja unavailable
+# Run Sod (nx=800, t=0.2)
+./build/agentic_cfd --problem sod1d --nx 800 --final_time 0.2 --cfl 0.5 --rk 3 --gamma 1.4 --deterministic
+# Run tests
+ctest --test-dir build --output-on-failure
+# Tuner (optional)
+pip install -r orchestrator/requirements.txt
+KRUNS=2 python orchestrator/study.py --trials 3
 ```
 
-## Next steps
-- Swap in **MUSCL + HLLC** for 1D Euler in `src/numerics.hpp` and wire calls in `Solver::step`.
-- Add MMS/Sod exact checks; emit real L2/Linf metrics.
-- Enable Kokkos and GPU backends (CUDA/HIP) once you're off Codespaces.
+### Output JSON (example)
+```json
+{
+  "nx": 800,
+  "l2": 0.0103,
+  "linf": 0.0589,
+  "kernel_ms": 4.12,
+  "total_ms": 4.17,
+  "deterministic": 1,
+  "mass_total": 0.56,
+  "momentum_total": 0.00,
+  "energy_total": 1.80,
+  "physics_hash": "e3a1b7a2c1d4e6f8"
+}
+```
 
-License: MIT
+> Note: This is a compact educational implementation. For production, replace arrays with Kokkos Views and extend to 2D/3D.

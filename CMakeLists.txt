@@ -5,11 +5,9 @@ project(agentic_cfd LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Options
-option(USE_KOKKOS "Enable Kokkos portability layer" OFF) # OFF by default for Codespaces
+option(USE_KOKKOS "Enable Kokkos portability layer" OFF)
 option(BUILD_TESTING "Build unit tests" ON)
 
-# Dependencies
 if(USE_KOKKOS)
   find_package(Kokkos QUIET)
   if(NOT Kokkos_FOUND)
@@ -25,7 +23,6 @@ add_library(cfd_core
   src/solver.cpp
   src/io.cpp
 )
-
 if(USE_KOKKOS)
   target_link_libraries(cfd_core PUBLIC Kokkos::kokkos)
   target_compile_definitions(cfd_core PUBLIC AGENTICCFD_USE_KOKKOS)
@@ -35,7 +32,6 @@ target_include_directories(cfd_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_executable(agentic_cfd src/main.cpp)
 target_link_libraries(agentic_cfd PRIVATE cfd_core)
 
-# Tests
 include(CTest)
 if(BUILD_TESTING)
   include(FetchContent)

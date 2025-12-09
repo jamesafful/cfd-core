@@ -1,7 +1,11 @@
 
 #pragma once
 #include <vector>
-struct State {
-  int nvars{3}; // minimal 1D placeholder: rho, rhou, E (not used in placeholder calc)
-  std::vector<double> q; // size = nvars * nx
+#include "numerics.hpp"
+
+struct State1D {
+  // cell-centered conservative variables
+  std::vector<Cons> U;
+  // scratch
+  std::vector<Cons> Utmp;
 };

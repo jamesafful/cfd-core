@@ -1,4 +1,4 @@
 
 #pragma once
-enum class BCType { Inflow, Outflow, Wall, Periodic };
-struct BC { BCType left{BCType::Periodic}, right{BCType::Periodic}; };
+enum class BCType { Transmissive, Periodic };
+struct BC1D { BCType left{BCType::Transmissive}, right{BCType::Transmissive}; };
