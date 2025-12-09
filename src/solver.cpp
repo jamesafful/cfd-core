@@ -4,7 +4,7 @@
 #include <vector>
 #include <numeric>
 
-static inline double clamp(double x, double a, double b){ return std::max(a, std::min(b, x)); }
+static inline int clampi(int j, int lo, int hi){ return std::min(std::max(j,lo), hi); }
 
 Solver1D::Solver1D(const GridDesc& g, const PhysicsParams& p, Problem1D prob)
   : grid_(g), phys_(p), problem_(prob) {
@@ -27,7 +27,7 @@ void Solver1D::init_problem(){
 }
 
 void Solver1D::apply_bc(std::vector<Cons>& U) const{
-  (void)U; // transmissive handled by clamped indices
+  (void)U; // transmissive via clamped indices
 }
 
 double Solver1D::max_wavespeed(const std::vector<Cons>& U) const{
@@ -42,19 +42,17 @@ double Solver1D::max_wavespeed(const std::vector<Cons>& U) const{
 void Solver1D::step_ssprk3(double dt){
   const int N = grid_.nx;
 
-  auto idx = [&](int j){ return std::min(std::max(j,0), N-1); };
-
   auto compute_fluxes = [&](const std::vector<Cons>& U, std::vector<Flux>& F){
     std::vector<Prim> W(N);
     for(int i=0;i<N;i++) W[i] = cons_to_prim(U[i], phys_.gamma);
 
     std::vector<Cons> UL(N+1), UR(N+1);
     for(int i=0;i<=N;i++){
-      int il = idx(i-1), ir = idx(i);
+      int il = clampi(i-1, 0, N-1), ir = clampi(i, 0, N-1);
       Prim WL = W[il], WR = W[ir];
       auto slope = [&](auto Prim::*m){
-        double dl = (W[il].*m) - (W[idx(il-1)].*m);
-        double dr = (W[idx(ir+1)].*m) - (W[ir].*m);
+        double dl = (W[il].*m) - (W[clampi(il-1,0,N-1)].*m);
+        double dr = (W[clampi(ir+1,0,N-1)].*m) - (W[ir].*m);
         return minmod(dl, dr);
       };
       Prim WLrec{ WL.r + 0.5*slope(&Prim::r),
@@ -67,7 +65,7 @@ void Solver1D::step_ssprk3(double dt){
       UR[i] = prim_to_cons(WRrec, phys_.gamma);
     }
     F.resize(N+1);
-    for(int i=0;i<=N;i++) F[i] = hllc(UL[i], UR[i], phys_.gamma);
+    for(int i=0;i<=N;i++) F[i] = hll(UL[i], UR[i], phys_.gamma); // << use HLL (robust)
   };
 
   auto conservative_update = [&](std::vector<Cons>& Udst,
@@ -81,11 +79,7 @@ void Solver1D::step_ssprk3(double dt){
       rhs.r  = - (F[i+1].Fr  - F[i].Fr ) * invdx;
       rhs.ru = - (F[i+1].Fru - F[i].Fru) * invdx;
       rhs.E  = - (F[i+1].FE  - F[i].FE ) * invdx;
-      Udst[i] = Cons{
-        Usrc[i].r  + factor * dt * rhs.r,
-        Usrc[i].ru + factor * dt * rhs.ru,
-        Usrc[i].E  + factor * dt * rhs.E
-      };
+      Udst[i] = Usrc[i] + factor * dt * rhs;
     }
   };
 

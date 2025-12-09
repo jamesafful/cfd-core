@@ -1,12 +1,16 @@
 #pragma once
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <utility>
+#include "state.hpp"
 
-struct Cons { double r, ru, E; };
-struct Prim { double r, u, p; };
+// ---------- MUSCL helper ----------
+inline double minmod(double a, double b){
+  if (a*b <= 0.0) return 0.0;
+  return (std::abs(a) < std::abs(b)) ? a : b;
+}
 
+// ---------- Cons <-> Prim ----------
 inline Prim cons_to_prim(const Cons& U, double g){
   const double r = std::max(U.r, 1e-14);
   const double u = U.ru / r;
@@ -14,67 +18,44 @@ inline Prim cons_to_prim(const Cons& U, double g){
   const double p = std::max((g - 1.0) * r * e, 1e-14);
   return Prim{r, u, p};
 }
-
 inline Cons prim_to_cons(const Prim& W, double g){
   const double E = W.p/(g-1.0) + 0.5 * W.r * W.u * W.u;
   return Cons{W.r, W.r*W.u, E};
 }
 
-inline double minmod(double a, double b){ if(a*b<=0.0) return 0.0; return (std::abs(a)<std::abs(b))?a:b; }
-
+// ---------- Euler flux ----------
 struct Flux { double Fr, Fru, FE; };
-
 inline Flux euler_flux(const Cons& U, double g){
   auto W = cons_to_prim(U,g);
-  double H = (U.E + W.p)/W.r;
+  const double H = (U.E + W.p)/W.r;
   return Flux{ U.ru, U.ru*W.u + W.p, U.ru*H };
 }
 
-// Compact, stable HLLC (Toro)
-inline Flux hllc(const Cons& UL, const Cons& UR, double g){
+// ---------- Robust HLL (two-wave) Riemann solver ----------
+inline Flux hll(const Cons& UL, const Cons& UR, double g){
   auto WL = cons_to_prim(UL,g);
   auto WR = cons_to_prim(UR,g);
   const double aL = std::sqrt(g*WL.p/WL.r);
   const double aR = std::sqrt(g*WR.p/WR.r);
+  // Davis waves (safe & simple)
   const double SL = std::min(WL.u - aL, WR.u - aR);
   const double SR = std::max(WL.u + aL, WR.u + aR);
 
   const Flux FL = euler_flux(UL,g);
   const Flux FR = euler_flux(UR,g);
 
-  if (SL >= 0.0) return FL;
-  if (SR <= 0.0) return FR;
+  if (SL >= 0.0) return FL;   // supersonic rightward
+  if (SR <= 0.0) return FR;   // supersonic leftward
 
-  const double num = (WR.p - WL.p) + UL.ru*(SL - WL.u) - UR.ru*(SR - WR.u);
-  const double den = UL.r*(SL - WL.u) - UR.r*(SR - WR.u) + 1e-14;
-  const double Sstar = num / den;
-
-  auto Ustar = [&](const Cons& U, const Prim& W, double S){
-    const double fac = (S - W.u)/(S - Sstar + 1e-14);
-    const double rS  = U.r * fac;
-    const double ruS = rS * Sstar;
-    const double ES  = U.E * fac + (Sstar - W.u) * ( (rS*(S - Sstar)) / (g-1.0) );
-    return Cons{rS, ruS, ES};
-  };
-
-  if (Sstar >= 0.0){
-    Cons US = Ustar(UL, WL, SL);
-    return Flux{
-      FL.Fr  + SL*(US.r  - UL.r ),
-      FL.Fru + SL*(US.ru - UL.ru),
-      FL.FE  + SL*(US.E  - UL.E )
-    };
-  } else {
-    Cons US = Ustar(UR, WR, SR);
-    return Flux{
-      FR.Fr  + SR*(US.r  - UR.r ),
-      FR.Fru + SR*(US.ru - UR.ru),
-      FR.FE  + SR*(US.E  - UR.E )
-    };
-  }
+  const double inv = 1.0 / (SR - SL + 1e-14);
+  Flux FH;
+  FH.Fr  = (SR*FL.Fr  - SL*FR.Fr  + SL*SR*(UR.r  - UL.r )) * inv;
+  FH.Fru = (SR*FL.Fru - SL*FR.Fru + SL*SR*(UR.ru - UL.ru)) * inv;
+  FH.FE  = (SR*FL.FE  - SL*FR.FE  + SL*SR*(UR.E  - UL.E )) * inv;
+  return FH;
 }
 
-// Newton-based exact Sod solution (enough for L2 checks)
+// ---------- Exact Sod (adequate for L2 checks) ----------
 inline Prim sod_exact(double x, double t, double x0, Prim WL, Prim WR, double g){
   if (t <= 0.0) return (x < x0) ? WL : WR;
 
@@ -112,28 +93,15 @@ inline Prim sod_exact(double x, double t, double x0, Prim WL, Prim WR, double g)
 
   const double aL = std::sqrt(g*pL/WL.r), aR = std::sqrt(g*pR/WR.r);
   double SL, SHL, SR, SHR;
-  // left fan/shock
-  if (p > pL){
-    SL = uL - aL*std::sqrt(1.0 + (g+1.0)/(2.0*g)*(p/pL - 1.0));
-    SHL = SL;
-  } else {
-    SL = uL - aL;
-    double aS = aL*std::pow(p/pL, (g-1.0)/(2.0*g));
-    SHL = u - aS;
-  }
-  // right fan/shock
-  if (p > pR){
-    SR = uR + aR*std::sqrt(1.0 + (g+1.0)/(2.0*g)*(p/pR - 1.0));
-    SHR = SR;
-  } else {
-    SR = uR + aR;
-    double aS = aR*std::pow(p/pR, (g-1.0)/(2.0*g));
-    SHR = u + aS;
-  }
 
-  double xi = (x - x0)/t;
+  if (p > pL){ SL = uL - aL*std::sqrt(1.0 + (g+1.0)/(2.0*g)*(p/pL - 1.0)); SHL=SL; }
+  else       { SL = uL - aL; double aS = aL*std::pow(p/pL, (g-1.0)/(2.0*g)); SHL=u-aS; }
+
+  if (p > pR){ SR = uR + aR*std::sqrt(1.0 + (g+1.0)/(2.0*g)*(p/pR - 1.0)); SHR=SR; }
+  else       { SR = uR + aR; double aS = aR*std::pow(p/pR, (g-1.0)/(2.0*g)); SHR=u+aS; }
+
+  const double xi = (x - x0)/t;
   if (xi <= SL) return WL;
-  // left region
   if (p <= pL){
     if (xi <= SHL){
       double a = aL + 0.5*(g-1.0)*(xi - uL);
@@ -150,7 +118,6 @@ inline Prim sod_exact(double x, double t, double x0, Prim WL, Prim WR, double g)
       return Prim{r, u, p};
     }
   }
-  // right region
   if (xi <= SHR){
     double r = (p <= pR) ? WR.r * std::pow(p/pR, 1.0/g)
                          : WR.r * ((p/pR + (g-1.0)/(g+1.0)) / ((g-1.0)/(g+1.0)*(p/pR) + 1.0));
