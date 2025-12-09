@@ -1,0 +1,14 @@
+
+# Build artifacts
+/build/
+/out/
+/dist/
+/.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.log
+*.DS_Store

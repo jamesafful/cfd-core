@@ -1,0 +1,32 @@
+
+name: ci
+on: [push, pull_request]
+jobs:
+  build_and_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup toolchain
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build
+      - name: Build
+        run: |
+          bash scripts/build.sh -G Ninja
+      - name: Tests
+        run: ctest --test-dir build --output-on-failure
+  orchestrator_smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - name: Build once
+        run: |
+          sudo apt-get update && sudo apt-get install -y cmake ninja-build
+          bash scripts/build.sh -G Ninja
+      - name: Orchestrator (2 trials, k=2)
+        env:
+          KRUNS: 2
+        run: |
+          pip install -r orchestrator/requirements.txt
+          python orchestrator/study.py --trials 2 || true
