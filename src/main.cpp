@@ -5,7 +5,6 @@
 #include <sstream>
 #include <iomanip>
 
-// Simple 64-bit FNV-1a hash -> 16-hex char string (portable, no OpenSSL)
 static std::string fnv1a16(const std::string& s){
   const uint64_t FNV_OFFSET = 14695981039346656037ull;
   const uint64_t FNV_PRIME  = 1099511628211ull;

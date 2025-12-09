@@ -1,11 +1,10 @@
-
 #pragma once
 #include <vector>
-#include "numerics.hpp"
+
+struct Cons { double r, ru, E; };   // conservative vars
+struct Prim { double r, u, p; };    // primitive vars
 
 struct State1D {
-  // cell-centered conservative variables
   std::vector<Cons> U;
-  // scratch
   std::vector<Cons> Utmp;
 };

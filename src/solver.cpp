@@ -41,23 +41,20 @@ double Solver1D::max_wavespeed(const std::vector<Cons>& U) const{
 
 void Solver1D::step_ssprk3(double dt){
   const int N = grid_.nx;
-  std::vector<Prim> W(N);
-  for(int i=0;i<N;i++) W[i] = cons_to_prim(S_.U[i], phys_.gamma);
 
-  auto idx = [&](int j){ return static_cast<int>(clamp(j, 0, N-1)); };
+  auto idx = [&](int j){ return std::min(std::max(j,0), N-1); };
 
-  // Stage function: reconstruct -> flux -> update
   auto compute_fluxes = [&](const std::vector<Cons>& U, std::vector<Flux>& F){
-    std::vector<Prim> Wloc(N);
-    for(int i=0;i<N;i++) Wloc[i] = cons_to_prim(U[i], phys_.gamma);
+    std::vector<Prim> W(N);
+    for(int i=0;i<N;i++) W[i] = cons_to_prim(U[i], phys_.gamma);
 
     std::vector<Cons> UL(N+1), UR(N+1);
     for(int i=0;i<=N;i++){
       int il = idx(i-1), ir = idx(i);
-      Prim WL = Wloc[il], WR = Wloc[ir];
+      Prim WL = W[il], WR = W[ir];
       auto slope = [&](auto Prim::*m){
-        double dl = (Wloc[il].*m) - (Wloc[idx(il-1)].*m);
-        double dr = (Wloc[idx(ir+1)].*m) - (Wloc[ir].*m);
+        double dl = (W[il].*m) - (W[idx(il-1)].*m);
+        double dr = (W[idx(ir+1)].*m) - (W[ir].*m);
         return minmod(dl, dr);
       };
       Prim WLrec{ WL.r + 0.5*slope(&Prim::r),
@@ -95,16 +92,13 @@ void Solver1D::step_ssprk3(double dt){
   std::vector<Flux> F;
   std::vector<Cons> U1(N), U2(N);
 
-  // Stage 1
   compute_fluxes(S_.U, F);
   conservative_update(U1, S_.U, F, 1.0);
 
-  // Stage 2
   compute_fluxes(U1, F);
   conservative_update(U2, U1, F, 0.25);
   for(int i=0;i<N;i++) U2[i] = 0.75*S_.U[i] + 0.25*U2[i];
 
-  // Stage 3
   compute_fluxes(U2, F);
   conservative_update(S_.Utmp, U2, F, 2.0/3.0);
   for(int i=0;i<N;i++) S_.U[i] = (1.0/3.0)*S_.U[i] + S_.Utmp[i];
